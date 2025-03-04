@@ -61,6 +61,3 @@ This project provides insights into **epidemiological modeling** and how differe
 
 ## 📩 Contact
 For inquiries, feel free to reach out via GitHub or email.
-
----
-*This project was conducted as part of an academic research initiative.*
