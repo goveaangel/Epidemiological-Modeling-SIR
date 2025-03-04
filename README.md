@@ -43,7 +43,7 @@ where:
 ## 🚀 Key Findings
 - Infection peaks depend on **R0 (basic reproduction number)**, calculated as:
 
-  $$ R_0 = \frac{\beta}{\gamma} $$
+  R_0 = β / γ
 
 - Vaccination strategies can prevent outbreaks if at least **75% of the population is immunized**.
 - Mobility and clustering significantly impact how an infection spreads, altering the effectiveness of containment measures.
