@@ -1,0 +1,855 @@
+---
+title: 'Actividad 1: Modelo $SIR$'
+author: 'A. Govea, D. Vertiz, F. Gutierrez, J. Dong'
+date: today
+format:
+  html: default
+  pdf:
+    pdf-engine: pdflatex
+  ipynb: default
+editor: 
+  markdown: 
+    wrap: sentence
+---
+
+## El modelo $SIR$
+
+Consideremos un modelo para describir la dinámica de un grupo de individuos de una población con exposición a una enfermedad que puede contagiarse entre los miembros de la población.
+Esto puede modelarse como un sistema dinámico denominado $SIR$ para una población de $N$ individuos en la que se considera la interacción entre un conjunto de $S$ individuos *suceptibles* de contraer la enfermedad, un conjunto $I$ de individuos *infectados* y uno conjunto $R$ de individuos *recuperados* de la enfermedad.
+
+Este modelo tiene los siguientes supuestos:
+
+-   Las probabilidades de infectarse son iguales para todos los individuos de la población;
+
+-   La población es homogénea, es decir que los riesgos de infectarse son iguales para todos los suceptibles y que los tiempos para recuperarse son iguales para todos los infectados; y
+
+-   El tamaño $N$ de la población es constante.
+
+El modelo maneja los diferentes conjuntos $S$, $I$ y $R$ como si fueran compartimentos bien separados y considera que los individuos pueden pasar de uno a otro en el caso de que se enfermen (cambio $S\rightarrow I$) o que una vez enfermos se recuperen (cambio $I\rightarrow R$).
+Además, se asume que un individuo no puede pasar del conjunto de suceptibles directamente al conjunto de recuperados.
+
+Con estos supuestos y consideraciones, las ecuaciones diferenciales del modelo $SIR$ son:
+
+$$
+\begin{aligned}
+\frac{dS}{dt}&= -\beta \frac{I}{N} S\\
+\frac{dI}{dt}&= \beta\frac{I}{N}S-\gamma I\\
+\frac{dR}{dt}&= \gamma I
+\end{aligned}
+$$
+
+donde:
+
+-   $N=S+R+I$
+
+-   la cantidad $\beta\frac{I}{N}$ representa la razón con que las personas salen del compartimento $S$ (se infectan);
+
+-   en la primera ecuación $dS$ representa el cambio debido a las personas que salen del compartimento $S$ (el signo negativo se debe a que las personas salen)
+
+-   en la segunda ecuación $dI$ representa el cambio debido a las personas que salen del compartimento $I$ (una parte se debe a las personas que del compartimento $S$ pasan al compartimento $I$, y otra parte se debe a las personas que salen del compartimento $I$ porque se recuperan);
+
+-   la cantidad $\gamma$ representa la razón con que las personas se recuperan.
+
+```{r}
+# PACKAGES:
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+
+# Initial states
+
+initial_state_values <- c(S = 999999,  # Número de susceptibles inicial
+                                       # 
+                          I = 1,       # Se inicia con una persona infectada
+                          R = 0)       # 
+
+
+# razones en unidades de días^-1
+parameters <- c(beta = 1,      # razón de infección
+                gamma = 0.1)   # razón de recuperación
+
+# valores de tiempo para resolver la ecuación, de 0 a 60 días
+times <- seq(from = 0, to = 60, by = 1)   
+
+# Solución del modelo
+sir_model <- function(time, state, parameters) {  
+    with(as.list(c(state, parameters)), {# R obtendrá los nombres de variables a
+                                         # partir de inputs de estados y parametros
+        N <- S+I+R 
+        lambda <- beta * I/N
+        dS <- -lambda * S               
+        dI <- lambda * S - gamma * I   
+        dR <- gamma * I                 
+        return(list(c(dS, dI, dR))) 
+    })
+}
+
+# poner la solución del sistema de ecuaciones en forma de un dataframe
+output <- as.data.frame(ode(y = initial_state_values, 
+                            times = times, 
+                            func = sir_model,
+                            parms = parameters))
+```
+
+## Gráficos de la evolución del sistema
+
+```{r}
+output_long <- melt(as.data.frame(output), id = "time")                  
+
+ggplot(data = output_long,                                              
+       aes(x = time, y = value, colour = variable, group = variable)) +  
+  geom_line() +                                                          
+  xlab("Tiempo (días)")+                                                   
+  ylab("Número de individuos") +                                             
+  labs(colour = "Subconjunto") +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+print(output)
+```
+
+## Pregunta 1
+
+Analizando el dataframe `output` encuentre el día en que el número de contagios es máximo (el pico de la curva verde).
+¿Después de cuántos días del inicio ocurre el máximo?
+Usando las ecuaciones diferenciales del modelo, encuentre una relación entre los parámetros del modelo válida para el valor de $t$ correspondiente al máximo de la curva de infección.
+
+```{r}
+print(output)
+```
+
+#### Solución Analítica
+
+Para encontrar el día en que el número de contagios es máximo tenemos que igualar la derivada de Infectados Respecto del tiempo a cero, de la siguiente manera: $$
+\frac{dI}{dt} = \beta \left( \frac{I}{N} \right) S - \gamma I = 0
+$$
+
+$$
+\beta \left( \frac{I}{N} \right) S - \gamma I = 0
+$$
+
+$$
+I \left( \frac{\beta S}{N} - \gamma \right) = 0
+$$
+
+$$
+\frac{\beta S}{N} = \gamma
+$$ Finalmente podemos obtener la cantidad de personas susceptibles dentro del modelo cuando I “número de personas Infectados” es máximo.
+$$
+S = \frac{\gamma N}{\beta}
+$$ Para encontrar cuánto vale "I" podemos dividir la derivada de "I" entre "S".
+$$
+\frac{dS}{dt} = -\beta \frac{I}{N} S
+$$
+
+$$
+\frac{dI}{dt} = \beta \frac{I}{N} S - \gamma I
+$$ De esta manera obtendremos la Ecuación Diferencial de Infectados Respecto de Población Susceptible; y podremos encontrar el valor de "I".
+$$
+\frac{dI}{dS} = -1 + \frac{\gamma N}{\beta S}
+$$
+
+$$
+\int dI = \int \left( -1 + \frac{\gamma N}{\beta S} \right) dS
+$$
+
+$$
+I = -S + \frac{\gamma N}{\beta} \ln |S| + C
+$$
+
+$$
+C = I_0 + S_0 - N \frac{\gamma}{\beta} \ln |S_0|
+$$
+
+$$
+I = -S(t) + I_0 + S_0 + N \frac{\gamma}{\beta} \ln \left| \frac{S(t)}{S_0} \right|
+$$ Se sabe que $$
+N_0 = I_0 + S_0
+$$ Entonces podemos deducir que $$
+I = -S(t) + N + N \frac{\gamma}{\beta} \ln \left| \frac{S(t)}{S_0} \right|
+$$ $$
+I = N + \frac{N \gamma}{\beta} \left[ \ln \left( \frac{N \gamma}{\beta S_0} \right) - 1 \right]
+$$ $$
+I = 1000000 + \frac{1000000(0.1)}{1} \left[ \ln \left( \frac{1000000(0.1)}{999999(1)} \right) \right]
+$$ $$
+I = 669741
+$$ Finalmente obtenemos el número de Infectados.
+Con este valor concluimos que el día donde se registra el número máximo de Infectados es el día 18.
+
+#### Análisis del dataframe
+#### Solución Numérica
+
+Como podemos ver el punto más alto en la curva verde, es decir, los infectados, con los valores iniciales, fue en el día 18, con 
+
+```{r}
+# PACKAGES:
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+
+# Initial states
+
+initial_state_values <- c(S = 999999,  # Número de susceptibles inicial
+                                       # 
+                          I = 1,       # Se inicia con una persona infectada
+                          R = 0)       # 
+
+
+# razones en unidades de días^-1
+parameters <- c(beta = 1,      # razón de infección
+                gamma = 0.1)   # razón de recuperación
+
+# valores de tiempo para resolver la ecuación, de 0 a 60 días
+times <- seq(from = 0, to = 60, by = 1)   
+
+# Solución del modelo
+sir_model <- function(time, state, parameters) {  
+    with(as.list(c(state, parameters)), {# R obtendrá los nombres de variables a
+                                         # partir de inputs de estados y parametros
+        N <- S+I+R 
+        lambda <- beta * I/N
+        dS <- -lambda * S               
+        dI <- lambda * S - gamma * I   
+        dR <- gamma * I                 
+        return(list(c(dS, dI, dR))) 
+    })
+}
+
+# poner la solución del sistema de ecuaciones en forma de un dataframe
+output <- as.data.frame(ode(y = initial_state_values, 
+                            times = times, 
+                            func = sir_model,
+                            parms = parameters))
+print(output)
+```
+
+## Pregunta 2
+
+Analizando el dataframe `output` encuentre después de cuántos días el número de “susceptibles” se reduce a la mitad.
+Usando la ecuación diferencial que expresa la variación del número de susceptibles, encuentre de manera analítica una fórmula que exprese el tiempo $t$ necesario para que el número de susceptibles sea la mitad del valor inicial en función de $\beta$.
+
+El primer paso necesario es encontrar el valor de $\frac{ds}{dr}$, el cual se obtiene dividiendo las ecuaciones diferenciales de suceptibles y recuperados $$
+\frac{ds}{dr}=\frac{ds}{dt}\cdot \frac{dt}{dr}=(-\beta\frac{I}{N}S)(\frac{1}{\gamma I})
+$$ obtiendo que $\frac{ds}{dr}$ es: $$
+\frac{ds}{dr}=-\frac{\beta}{N\gamma}S
+$$ Integramos ambas partes de la igualdad: $$
+\int_{}^{}\frac{ds}{S}=\int_{}^{}-\frac{\beta}{N\gamma}dR 
+$$ obteniendo la siguiente igualdad: $$
+ln\left| S \right|=-\frac{\beta}{N\gamma}R + C
+$$ Tomamos los valores inciales de S y de R para obtener el valor de C $$
+ln\left| S_0 \right|=-\frac{\beta}{N\gamma}R_0 + C
+$$
+
+$$
+C =\frac{\beta}{N\gamma}R_0 + ln\left| S_0 \right|
+$$
+
+$$
+R_0 = 0 \Rightarrow C=ln\left| S_0 \right|
+$$ #por que dejo de ser s y r_o para ser s y r respecto de t $$
+ln\left| S(t) \right|=-\frac{\beta}{N\gamma}R(t) + ln\left| S_0 \right|
+$$ Aplicamos base e en ambos lados de la iguadad: $$
+S(t)=S_0\cdot e^{-\frac{\beta}{N\gamma}R(t)}
+$$ Estamos busacando una fórmula que exprese el tiempo $t$ necesario para que el número de susceptibles sea la mitad del valor inicial en función de $\beta$, por lo que sustituimos $S(t)$ por $\frac{1}{2}S_0$ $$
+\frac{1}{2}S_0=S_0\cdot e^{-\frac{\beta}{N\gamma}R(t)} \Rightarrow \frac{1}{2}=e^{-\frac{\beta}{N\gamma}R(t)}
+$$ Aplicamos ln en ambos lados de la igualdad: $$
+ln\left| \frac{1}{2} \right|=-\frac{\beta}{N\gamma}R(t)
+$$ Despejamos la igualdad para buscar el valor de R(t) $$
+R(t)=ln\left| \frac{1}{2} \right|(-\frac{\beta}{N\gamma})^{-1}
+$$ Sustituimos los valores de $\beta$, N y $\gamma$ para encontrar $R(t)$ $$
+R(t)=ln\left| \frac{1}{2} \right|(-\frac{1}{(1000000)(0.1)})^{-1}
+$$ y obtenemos que el valor tiempo $t$ necesario paraque el número de susceptibles sea la mitad del valor inicial en función de $\beta$ es: $$
+R(t)=69,314.7181
+$$ El tiempo $t$ en el que el número de susceptibles es la mitad del valor inicial en función de $\beta$ en la grafica se encuentra en algun punto entre los dias 18 y 19
+
+## Pregunta 3
+
+Estudie la dinámica del contagio variando los parámetros $\beta$ y $\gamma$.
+Empiece con $\gamma=0.1$ constante cambiando $\beta$ (que representa la ‘fuerza’ de la infección):
+
+-   $\beta=0.1$, 365 días
+
+-   $\beta=0.3$, 365 días
+
+-   $\beta=0.7$, 60 días
+
+-   $\beta=0.9$, 60 días
+
+-   $\beta=1.2$, 60 días
+
+Comente acerca de los cambios que se observan en las curvas.
+Encuentre una relación entre $\beta$ y $\gamma$ necesaria para que ocurra la epidemia.
+Para que haya una epidemia la fuerza de infección ($\beta$) debe ser suficientemente alta por un tiempo suficientemente largo ($\gamma$ suficientemente bajo) de manera que se pueda transmitir el agente patógeno.
+A partir de este estudio se puede definir el coeficiente $R_0$ de la infección.
+
+$\beta$= 0.1, 365 días
+
+```{r}
+# PACKAGES:
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+
+# Initial states
+
+initial_state_values <- c(S = 999999,  # Número de susceptibles inicial
+                                       # 
+                          I = 1,       # Se inicia con una persona infectada
+                          R = 0)       # 
+
+
+# razones en unidades de días^-1
+parameters <- c(beta = 0.1,      # razón de infección
+                gamma = 0.1)   # razón de recuperación
+
+# valores de tiempo para resolver la ecuación, de 0 a 365 días
+times <- seq(from = 0, to = 365, by = 18.25)   
+
+# Solución del modelo
+sir_model <- function(time, state, parameters) {  
+    with(as.list(c(state, parameters)), {# R obtendrá los nombres de variables a
+                                         # partir de inputs de estados y parametros
+        N <- S+I+R 
+        lambda <- beta * I/N
+        dS <- -lambda * S               
+        dI <- lambda * S - gamma * I   
+        dR <- gamma * I                 
+        return(list(c(dS, dI, dR))) 
+    })
+}
+
+# poner la solución del sistema de ecuaciones en forma de un dataframe
+output <- as.data.frame(ode(y = initial_state_values, 
+                            times = times, 
+                            func = sir_model,
+                            parms = parameters))
+
+output_long <- melt(as.data.frame(output), id = "time")                  
+
+ggplot(data = output_long,                                              
+       aes(x = time, y = value, colour = variable, group = variable)) +  
+  geom_line() +                                                          
+  xlab("Tiempo (días)")+                                                   
+  ylab("Número de individuos") +                                             
+  labs(colour = "Subconjunto") +
+  theme(legend.position = "bottom")
+
+print(output)
+```
+
+Como podemos ver, $\beta$ es demasiado bajo para el tiempo tan largo como es un año.
+Incluso en el modelo, se aprecia en los datos duros que solo llegó a infectar a casi 35 personas de 1 millón iniciales.
+
+(En 360 días, los Sanos llegaron a 999963 y los infectados a casi 36, una cifra nada importante e incluso se podría considerar una enfermedad que no va a durar).
+
+$\beta$= 0.3, 365 días
+
+```{r}
+# PACKAGES:
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+
+# Initial states
+
+initial_state_values <- c(S = 999999,  # Número de susceptibles inicial
+                                       # 
+                          I = 1,       # Se inicia con una persona infectada
+                          R = 0)       # 
+
+
+# razones en unidades de días^-1
+parameters <- c(beta = 0.3,      # razón de infección
+                gamma = 0.1)   # razón de recuperación
+
+# valores de tiempo para resolver la ecuación, de 0 a 365 días
+times <- seq(from = 0, to = 365, by = 1)   
+
+# Solución del modelo
+sir_model <- function(time, state, parameters) {  
+    with(as.list(c(state, parameters)), {# R obtendrá los nombres de variables a
+                                         # partir de inputs de estados y parametros
+        N <- S+I+R 
+        lambda <- beta * I/N
+        dS <- -lambda * S               
+        dI <- lambda * S - gamma * I   
+        dR <- gamma * I                 
+        return(list(c(dS, dI, dR))) 
+    })
+}
+
+# poner la solución del sistema de ecuaciones en forma de un dataframe
+output <- as.data.frame(ode(y = initial_state_values, 
+                            times = times, 
+                            func = sir_model,
+                            parms = parameters))
+
+output_long <- melt(as.data.frame(output), id = "time")                  
+
+ggplot(data = output_long,                                              
+       aes(x = time, y = value, colour = variable, group = variable)) +  
+  geom_line() +                                                          
+  xlab("Tiempo (días)")+                                                   
+  ylab("Número de individuos") +                                             
+  labs(colour = "Subconjunto") +
+  theme(legend.position = "bottom")
+```
+
+Con $\beta = 0.3$, la tasa de infección es moderada pero suficiente para iniciar una epidemia, haciendo que el número de infectados crezca de manera constante a lo largo del tiempo.
+Aunque el pico de infectados ocurre más tarde que con valores más altos de $\beta$, la propagación es controlada y la epidemia se extiende durante un período más prolongado, con muchos susceptibles aún presentes hacia el final del año.
+
+$\beta$= 0.7, 60 días
+
+```{r}
+# PACKAGES:
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+
+# Initial states
+
+initial_state_values <- c(S = 999999,  # Número de susceptibles inicial
+                                       # 
+                          I = 1,       # Se inicia con una persona infectada
+                          R = 0)       # 
+
+
+# razones en unidades de días^-1
+parameters <- c(beta = 0.7,      # razón de infección
+                gamma = 0.1)   # razón de recuperación
+
+# valores de tiempo para resolver la ecuación, de 0 a 60 días
+times <- seq(from = 0, to = 60, by = 1)   
+
+# Solución del modelo
+sir_model <- function(time, state, parameters) {  
+    with(as.list(c(state, parameters)), {# R obtendrá los nombres de variables a
+                                         # partir de inputs de estados y parametros
+        N <- S+I+R 
+        lambda <- beta * I/N
+        dS <- -lambda * S               
+        dI <- lambda * S - gamma * I   
+        dR <- gamma * I                 
+        return(list(c(dS, dI, dR))) 
+    })
+}
+
+# poner la solución del sistema de ecuaciones en forma de un dataframe
+output <- as.data.frame(ode(y = initial_state_values, 
+                            times = times, 
+                            func = sir_model,
+                            parms = parameters))
+
+output_long <- melt(as.data.frame(output), id = "time")                  
+
+ggplot(data = output_long,                                              
+       aes(x = time, y = value, colour = variable, group = variable)) +  
+  geom_line() +                                                          
+  xlab("Tiempo (días)")+                                                   
+  ylab("Número de individuos") +                                             
+  labs(colour = "Subconjunto") +
+  theme(legend.position = "bottom")
+```
+
+Con $\beta$= 0.7 , la tasa de infección es significativamente mayor, lo que provoca una propagación más rápida de la enfermedad.
+Aunque el tiempo total es más corto (60 días), un mayor número de personas se infecta antes de que los casos empiecen a disminuir.
+Esto resulta en un pico de infectados mucho más temprano, con una reducción más acelerada de los susceptibles y una mayor población recuperada al final, comparado con $\beta = 0.3$ , lo que indica una epidemia más severa en menos tiempo.
+
+$\beta$= 0.9, 60 días
+
+```{r}
+# PACKAGES:
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+
+# Initial states
+
+initial_state_values <- c(S = 999999,  # Número de susceptibles inicial
+                                       # 
+                          I = 1,       # Se inicia con una persona infectada
+                          R = 0)       # 
+
+
+# razones en unidades de días^-1
+parameters <- c(beta = 0.9,      # razón de infección
+                gamma = 0.1)   # razón de recuperación
+
+# valores de tiempo para resolver la ecuación, de 0 a 60 días
+times <- seq(from = 0, to = 60, by = 1)   
+
+# Solución del modelo
+sir_model <- function(time, state, parameters) {  
+    with(as.list(c(state, parameters)), {# R obtendrá los nombres de variables a
+                                         # partir de inputs de estados y parametros
+        N <- S+I+R 
+        lambda <- beta * I/N
+        dS <- -lambda * S               
+        dI <- lambda * S - gamma * I   
+        dR <- gamma * I                 
+        return(list(c(dS, dI, dR))) 
+    })
+}
+
+# poner la solución del sistema de ecuaciones en forma de un dataframe
+output <- as.data.frame(ode(y = initial_state_values, 
+                            times = times, 
+                            func = sir_model,
+                            parms = parameters))
+
+output_long <- melt(as.data.frame(output), id = "time")                  
+
+ggplot(data = output_long,                                              
+       aes(x = time, y = value, colour = variable, group = variable)) +  
+  geom_line() +                                                          
+  xlab("Tiempo (días)")+                                                   
+  ylab("Número de individuos") +                                             
+  labs(colour = "Subconjunto") +
+  theme(legend.position = "bottom")
+```
+
+Con $\beta = 0.9$ durante 60 días, la propagación del virus es rápida, con un aumento significativo en el número de infectados en poco tiempo.
+A diferencia de $\beta = 0.3$ o $\beta = 0.7$ , aquí una gran parte de la población susceptible es infectada en tan solo dos meses.
+Esto resulta en una disminución acelerada de los susceptibles, mientras los infectados alcanzan un pico temprano y más alto.
+El equilibrio entre susceptibles y recuperados ocurre de manera abrupta, lo que indica que la enfermedad agota a los susceptibles a gran velocidad.
+
+$\beta$= 1.2, 60 días
+
+```{r}
+# PACKAGES:
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+
+# Initial states
+
+initial_state_values <- c(S = 999999,  # Número de susceptibles inicial
+                                       # 
+                          I = 1,       # Se inicia con una persona infectada
+                          R = 0)       # 
+
+
+# razones en unidades de días^-1
+parameters <- c(beta = 1.2,      # razón de infección
+                gamma = 0.1)   # razón de recuperación
+
+# valores de tiempo para resolver la ecuación, de 0 a 60 días
+times <- seq(from = 0, to = 60, by = 1)   
+
+# Solución del modelo
+sir_model <- function(time, state, parameters) {  
+    with(as.list(c(state, parameters)), {# R obtendrá los nombres de variables a
+                                         # partir de inputs de estados y parametros
+        N <- S+I+R 
+        lambda <- beta * I/N
+        dS <- -lambda * S               
+        dI <- lambda * S - gamma * I   
+        dR <- gamma * I                 
+        return(list(c(dS, dI, dR))) 
+    })
+}
+
+# poner la solución del sistema de ecuaciones en forma de un dataframe
+output <- as.data.frame(ode(y = initial_state_values, 
+                            times = times, 
+                            func = sir_model,
+                            parms = parameters))
+
+output_long <- melt(as.data.frame(output), id = "time")                  
+
+ggplot(data = output_long,                                              
+       aes(x = time, y = value, colour = variable, group = variable)) +  
+  geom_line() +                                                          
+  xlab("Tiempo (días)")+                                                   
+  ylab("Número de individuos") +                                             
+  labs(colour = "Subconjunto") +
+  theme(legend.position = "bottom")
+```
+
+Con $\beta = 1.2$ durante 60 días, la tasa de infección es extremadamente alta, lo que genera un brote explosivo en pocos días.
+La mayoría de los susceptibles son infectados rápidamente y el número de recuperados crece casi de inmediato.
+A diferencia de valores más bajos como $\beta = 0.3$ o $\beta = 0.9$ , la transición de susceptibles a infectados y luego a recuperados ocurre en un tiempo muy corto.
+Esto sugiere que, sin medidas preventivas, la enfermedad podría saturar los sistemas de salud rápidamente.
+
+Para que haya una epidemia la fuerza de infección ($\beta$) debe ser suficientemente alta por un tiempo suficientemente largo ($\gamma$ suficientemente bajo) de manera que se pueda transmitir el agente patógeno.
+A partir de este estudio se puede definir el coeficiente R0 de la infección, que como James Holland lo describió, se puede obtener así:
+
+$$
+R_0 \propto \left( \frac{\text{infection}}{\text{contact}} \right) \cdot \left( \frac{\text{contact}}{\text{time}} \right) \cdot \left( \frac{\text{time}}{\text{infection}} \right)
+$$
+
+y después de analizar la susceptibilidad de una población, describe un coeficiente:
+
+$$
+\frac{\beta}{\nu} = R_0 \geq 1
+$$
+
+Que se refiere en este caso a la proporción de $\beta$ y $\gamma$, por lo que con las diferentes $\beta$, serían $$
+R_0 = 1,3,4,9,12
+$$ respectivamente.
+
+## Pregunta 4
+
+Después, con $\beta=1$ varíe el valor de $\gamma$:
+
+-   $\gamma=0.025$, 60 días
+
+-   $\gamma=0.2$, 60 días
+
+-   $\gamma=0.5$, 60 días
+
+-   $\gamma=1$, 365 días
+
+Comente acerca de los cambios que se observan en las curvas.
+Encuentre una relación entre $\beta$ y $\gamma$ necesaria para que ocurra la epidemia.
+Para que haya una epidemia la fuerza de infección ($\beta$) debe ser suficientemente alta por un tiempo suficientemente largo ($\gamma$ suficientemente bajo) de manera que se pueda transmitir el agente patógeno.
+A partir de este estudio se puede definir el coeficiente $R_0$ de la infección.
+
+$\gamma$= 0.025, 60 días
+
+```{r}
+# PACKAGES:
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+
+# Initial states
+
+initial_state_values <- c(S = 999999,  # Número de susceptibles inicial
+                                       # 
+                          I = 1,       # Se inicia con una persona infectada
+                          R = 0)       # 
+
+
+# razones en unidades de días^-1
+parameters <- c(beta = 1,      # razón de infección
+                gamma = 0.025)   # razón de recuperación
+
+# valores de tiempo para resolver la ecuación, de 0 a 60 días
+times <- seq(from = 0, to = 60, by = 1)   
+
+# Solución del modelo
+sir_model <- function(time, state, parameters) {  
+    with(as.list(c(state, parameters)), {# R obtendrá los nombres de variables a
+                                         # partir de inputs de estados y parametros
+        N <- S+I+R 
+        lambda <- beta * I/N
+        dS <- -lambda * S               
+        dI <- lambda * S - gamma * I   
+        dR <- gamma * I                 
+        return(list(c(dS, dI, dR))) 
+    })
+}
+
+# poner la solución del sistema de ecuaciones en forma de un dataframe
+output <- as.data.frame(ode(y = initial_state_values, 
+                            times = times, 
+                            func = sir_model,
+                            parms = parameters))
+
+#graficos de la evolucion del sistema
+output_long <- melt(as.data.frame(output), id = "time")                  
+
+ggplot(data = output_long,                                              
+       aes(x = time, y = value, colour = variable, group = variable)) +  
+  geom_line() +                                                          
+  xlab("Tiempo (días)")+                                                   
+  ylab("Número de individuos") +                                             
+  labs(colour = "Subconjunto") +
+  theme(legend.position = "bottom")
+
+print(output)
+```
+
+$\gamma$= 0.2, 60 días
+
+```{r}
+# PACKAGES:
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+
+# Initial states
+
+initial_state_values <- c(S = 999999,  # Número de susceptibles inicial
+                                       # 
+                          I = 1,       # Se inicia con una persona infectada
+                          R = 0)       # 
+
+
+# razones en unidades de días^-1
+parameters <- c(beta = 1,      # razón de infección
+                gamma = 0.2)   # razón de recuperación
+
+# valores de tiempo para resolver la ecuación, de 0 a 60 días
+times <- seq(from = 0, to = 60, by = 1)   
+
+# Solución del modelo
+sir_model <- function(time, state, parameters) {  
+    with(as.list(c(state, parameters)), {# R obtendrá los nombres de variables a
+                                         # partir de inputs de estados y parametros
+        N <- S+I+R 
+        lambda <- beta * I/N
+        dS <- -lambda * S               
+        dI <- lambda * S - gamma * I   
+        dR <- gamma * I                 
+        return(list(c(dS, dI, dR))) 
+    })
+}
+
+# poner la solución del sistema de ecuaciones en forma de un dataframe
+output <- as.data.frame(ode(y = initial_state_values, 
+                            times = times, 
+                            func = sir_model,
+                            parms = parameters))
+
+#graficos de la evolucion del sistema
+output_long <- melt(as.data.frame(output), id = "time")                  
+
+ggplot(data = output_long,                                              
+       aes(x = time, y = value, colour = variable, group = variable)) +  
+  geom_line() +                                                          
+  xlab("Tiempo (días)")+                                                   
+  ylab("Número de individuos") +                                             
+  labs(colour = "Subconjunto") +
+  theme(legend.position = "bottom")
+
+print(output)
+```
+
+$\gamma$= 0.5, 60 días
+
+```{r}
+# PACKAGES:
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+
+# Initial states
+
+initial_state_values <- c(S = 999999,  # Número de susceptibles inicial
+                                       # 
+                          I = 1,       # Se inicia con una persona infectada
+                          R = 0)       # 
+
+
+# razones en unidades de días^-1
+parameters <- c(beta = 1,      # razón de infección
+                gamma = 0.5)   # razón de recuperación
+
+# valores de tiempo para resolver la ecuación, de 0 a 60 días
+times <- seq(from = 0, to = 60, by = 1)   
+
+# Solución del modelo
+sir_model <- function(time, state, parameters) {  
+    with(as.list(c(state, parameters)), {# R obtendrá los nombres de variables a
+                                         # partir de inputs de estados y parametros
+        N <- S+I+R 
+        lambda <- beta * I/N
+        dS <- -lambda * S               
+        dI <- lambda * S - gamma * I   
+        dR <- gamma * I                 
+        return(list(c(dS, dI, dR))) 
+    })
+}
+
+# poner la solución del sistema de ecuaciones en forma de un dataframe
+output <- as.data.frame(ode(y = initial_state_values, 
+                            times = times, 
+                            func = sir_model,
+                            parms = parameters))
+
+#graficos de la evolucion del sistema
+output_long <- melt(as.data.frame(output), id = "time")                  
+
+ggplot(data = output_long,                                              
+       aes(x = time, y = value, colour = variable, group = variable)) +  
+  geom_line() +                                                          
+  xlab("Tiempo (días)")+                                                   
+  ylab("Número de individuos") +                                             
+  labs(colour = "Subconjunto") +
+  theme(legend.position = "bottom")
+
+print(output)
+```
+
+$\gamma$= 1, 365 días
+
+```{r}
+# PACKAGES:
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+
+# Initial states
+
+initial_state_values <- c(S = 999999,  # Número de susceptibles inicial
+                                       # 
+                          I = 1,       # Se inicia con una persona infectada
+                          R = 0)       # 
+
+
+# razones en unidades de días^-1
+parameters <- c(beta = 1,      # razón de infección
+                gamma = 1)   # razón de recuperación
+
+# valores de tiempo para resolver la ecuación, de 0 a 60 días
+times <- seq(from = 0, to = 60, by = 1)   
+
+# Solución del modelo
+sir_model <- function(time, state, parameters) {  
+    with(as.list(c(state, parameters)), {# R obtendrá los nombres de variables a
+                                         # partir de inputs de estados y parametros
+        N <- S+I+R 
+        lambda <- beta * I/N
+        dS <- -lambda * S               
+        dI <- lambda * S - gamma * I   
+        dR <- gamma * I                 
+        return(list(c(dS, dI, dR))) 
+    })
+}
+
+# poner la solución del sistema de ecuaciones en forma de un dataframe
+output <- as.data.frame(ode(y = initial_state_values, 
+                            times = times, 
+                            func = sir_model,
+                            parms = parameters))
+
+#graficos de la evolucion del sistema
+output_long <- melt(as.data.frame(output), id = "time")                  
+
+ggplot(data = output_long,                                              
+       aes(x = time, y = value, colour = variable, group = variable)) +  
+  geom_line() +                                                          
+  xlab("Tiempo (días)")+                                                   
+  ylab("Número de individuos") +                                             
+  labs(colour = "Subconjunto") +
+  theme(legend.position = "bottom")
+
+print(output)
+```
+
+Realizando las modificaciones en $\gamma$ (tasa de recuperacion), dejando el valor de $\beta$ constante (tasa de infeccion) encontramos 4 casos distintos en la relacion de $\gamma$ y $\beta$.
+
+-   En el primer caso, tenemos que el valor de $\gamma < \beta$ pero alejado de beta.
+    En este caso la epidemia ocurrre y mucho mas fuerte que en otros casos, ejemplo es la grafica 1.
+    En donde $\gamma = 0.025$ y $\gamma < \beta$.
+    En el caso de los susceptibles la curva desciende a mayor velocidad, en los infectados el punto máximo de la curva es más grande y en los recuperados la curva aumenta más lento.
+
+-   En el segundo caso, tenemos que el valor de $\gamma < \beta$ pero cercano de beta.
+    En este caso la epidemia ocurrre pero con menos fuerza que en otros casos, ejemplo de esto es la grafica 3.
+    En donde $\gamma = 0.5$ y $\gamma < \beta$.
+    En el caso de los susceptibles la curva desciende más lento, el punto máximo de infectados es menor y la curva de recuperados aumenta a mayor velocidad.
+
+-   En el tercer caso, tenemos que el valor de $\gamma = \beta$.
+    En este caso la infeccion se encuentra en equilibrio, ya que el ritmo de infeccion es exactamente el mismo que el de recuperacion.
+    En este caso no existe curva de infectados y los susceptibles y recuperados son una linea recta.
+
+-   El cuarto caso no esta presente en ninguna de las graficas que analizamos, a pesar de esto en este caso tenemos que $\gamma > \beta$.
+    Cuando esto sucede la infeccion se encuentra controlada y podriamos apreciar un comportamiento similar a cuando $\gamma = \beta$.
+
+El coeficiente de reproducción $R_0$ nos indica el número de casos secundarios que generará los casos primarios.
+$R_0$ es definido por $\frac{\beta}{\gamma}$, y para que una epidemia ocurra este coeficiente tiene que se mayor a 1.
+Esto lo podemos ver en los primeros 3 ejemplos analizados en los que el coeficiente $R_0 > 1$, también vemos que mientras más grande sea $R_0$ más grande es la curva de infectados y mas fuerte es la epidemia.
+Por último, en el último caso vemos como $R_0$ es igual a 1, por lo que la epidemia no ocurre

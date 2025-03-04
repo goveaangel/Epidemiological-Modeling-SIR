@@ -1,0 +1,493 @@
+---
+title: "Actividad 3: Simulación de la geometría de ciudad y estructura de datos para las personas"
+author: "E. Crescio, J. Montalvo, E. Uresti"
+date: today
+format:
+  html: default
+  pdf:
+    pdf-engine: pdflatex
+    keep-tex: true
+  ipynb: default
+---
+
+En esta fase del reto, iniciarás un esquema en el que los individuos considerados son personas que se encuentran localizados en un espacio geográfico delimitado en una geometría conocida.
+
+Para este fin, cada miembro del equipo deberá elegir una de las siguientes configuraciones de su problema:
+
+## Problema 1:
+
+-   Crear una ciudad cuadrada donde cada lado tiene tamaño $D$ con distribución uniforme de personas.
+
+-   Crear un arreglo de posiciones $x$, y de posiciones $y$ considerando $N$ personas.
+    Asignar una posición inicial para cada una de las personas de la población por medio de un número aleatorio uniforme.
+    En `R` puede realizarse como: `runif(N,min=0,max=1)`.
+    Note que debe elegir valores apropiados para el mínimo y el máximo para asegurar que todas las personas estén dentro de los límites de la ciudad.
+
+```{r}
+# PACKAGES:
+library(ggplot2)
+
+D <- 50            #tamaño de la ciudad
+N <- 100000        #población total
+
+# estados de la población
+I <- 1             #infectados iniciales
+R <- 0             #recuperados iniciales
+S <- N - I - R     #susceptibles iniciales
+
+r <- 0.6           #radio de infección
+gamma <- 0.1       # azón de recuperación
+
+#posiciones de las personas en la ciudad
+posicion_x <- runif(N, min = 0, max = D)  
+posicion_y <- runif(N, min = 0, max = D) 
+
+#asignar el estado (I, R, S) a cada persona 
+estado <- factor(c(rep("Infectado", I), rep("Recuperado", R), rep("Susceptible", S)),
+                 levels = c("Susceptible", "Infectado", "Recuperado"))
+
+id <- 1:N
+iteracion <- rep(0, N)
+
+#dataframe con todas las variables
+poblacion <- data.frame(id, posicion_x, posicion_y, estado, iteracion)
+
+
+#función para calcular la distancia euclidiana y verificar si está dentro r
+calcular_infectados <- function(df, r) {
+  #seleccionar una persona aleatoria como infectada
+  set.seed(1)
+  infectado <- sample(which(df$estado == "Infectado"), 1)
+  
+  #calcular distancia 
+  df$riesgo_contagio <- sqrt((df$posicion_x - df$posicion_x[infectado])^2 + 
+                             (df$posicion_y - df$posicion_y[infectado])^2) < r
+  
+  return(list(data = df, infectado = infectado))
+}
+
+#aplicar la función y obtener el resultado
+resultado <- calcular_infectados(poblacion, r)
+poblacion <- resultado$data
+infectado <- resultado$infectado
+#df 
+print(head(poblacion))
+
+#gráfica
+poblacion_sample <- poblacion[sample(1:N, 500), ]  # muestra de 500 personas
+
+ggplot(poblacion_sample, aes(x = posicion_x, y = posicion_y)) +
+  geom_point(aes(color = riesgo_contagio), alpha = 0.6) +
+  geom_point(data = poblacion[infectado, ], aes(x = posicion_x, y = posicion_y), color = "red", size = 3) +
+  labs(title = "Personas en la ciudad D con riesgo de contagio", x = "Posición X", y = "Posición Y") +
+  xlim(0, D) +
+  ylim(0, D) +
+  theme_minimal() +
+  scale_color_manual(values = c("TRUE" = "orange", "FALSE" = "blue"), labels = c("Riesgo de Contagio", "Sin Riesgo")) +
+  theme(legend.title = element_blank())
+
+```
+
+## Problema 2:
+
+-   Crear una ciudad circular de radio $D/2$ con distribución uniforme de personas, misma que no puede generarse de manera estándar sino que debe considerarse una distribución modificada tal como se ve en\
+    <https://programming.guide/random-point-within-circle.html>.
+
+-   Crear un arreglo de posiciones $x$, y de posiciones $y$ considerando $N$ personas.
+    Asignar una posición inicial aleatoria para cada una de las personas de la población.
+    
+```{r }
+# Parámetros de la simulación
+I <- 1  # Número inicial de infectados
+S <- 9999  # Número inicial de susceptibles
+Rec <- 0  # Número inicial de recuperados
+N <- I + S + Rec  # Tamaño total de la población
+D <- 250  # Diámetro de la ciudad
+R <- D / 2  # Radio de la ciudad
+ajuste_borde <- 0.96  # Ajuste para evitar que personas estén en el borde exacto de la ciudad
+k <- 0.15  # Factor de radio inicial
+radius <- N * k  # Radio de infección inicial
+recov <- 0.2  # Probabilidad de recuperación (sin uso en esta simulación)
+num_iteraciones <- 8  # Número de iteraciones
+prob_infección <- 0.6  # Probabilidad de infección
+
+# Generación de posiciones usando coordenadas polares
+ang <- runif(N, 0, 2 * pi)
+rad <- R * ajuste_borde * sqrt(runif(N))
+x_N <- rad * cos(ang)
+y_N <- rad * sin(ang)
+
+# Creación del dataframe personas
+personas <- data.frame(
+  id = 1:N,
+  posición_x = x_N,
+  posición_y = y_N,
+  Estado = sample(c(rep("Susceptible", S), rep("Infectado", I), rep("Recuperado", Rec))),
+  it = 0
+)
+
+# Función para obtener coordenadas de una persona por su ID
+coords <- function(id_persona) {
+  persona <- personas[personas$id == id_persona, ]
+  if (nrow(persona) > 0) {
+    return(c(x = persona$posición_x, y = persona$posición_y))
+  } else {
+    return("ID no encontrado")
+  }
+}
+
+# Función para calcular la distancia euclidiana entre dos puntos
+euclid <- function(x1, x2, y1, y2) {
+  sqrt((x2 - x1)^2 + (y2 - y1)^2)
+}
+
+# Función para verificar si una persona está dentro del radio de infección
+infección <- function(x1, y1, x2, y2, radius) {
+  euclid(x1, x2, y1, y2) < radius
+}
+
+# Función para graficar la situación de la ciudad en cada iteración
+graficar <- function(personas, infectado_inicial, R) {
+  plot(personas$posición_x, personas$posición_y, 
+       xlim = c(-R, R), ylim = c(-R, R),
+       xlab = "x", ylab = "y",          
+       main = "Ciudad V", 
+       pch = ifelse(personas$Estado == "Susceptible", 20, 
+                    ifelse(personas$Estado == "Infectado", 18, 19)), 
+       col = ifelse(personas$Estado == "Susceptible", "blue", 
+                    ifelse(personas$Estado == "Infectado", "red", "green")),
+       cex = ifelse(personas$Estado == "Susceptible", 1, 
+                    ifelse(personas$Estado == "Infectado", 2, 2)),
+       asp = 1)
+  # Graficar una frontera de la ciudad (un círculo como límite)
+  symbols(0, 0, circles = R + 0.2, inches = FALSE, add = TRUE, lwd = 2, fg = "blue")
+}
+
+# Selección del infectado inicial
+infectado_inicial <- which(personas$Estado == "Infectado")[1]
+
+# Iteración de la infección con probabilidad
+for (j in 1:num_iteraciones) {
+  graficar(personas, infectado_inicial, R)
+  for (i in 1:N) {
+    if (personas$Estado[i] == "Susceptible") {
+      infected_coords <- coords(infectado_inicial)
+      normal_coords <- coords(i)
+      distance <- euclid(infected_coords["x"], normal_coords["x"], infected_coords["y"], normal_coords["y"])
+      if (infección(infected_coords["x"], infected_coords["y"], normal_coords["x"], normal_coords["y"], radius) &&
+          runif(1) < prob_infección) {
+        personas$Estado[i] <- "Infectado"
+      }
+    }
+  }
+  Sys.sleep(1)
+}
+
+```
+
+## Problema 3:
+
+-   Crear una ciudad cuadrada de lado $D$ en la que las personas están distribuidas en forma de "cluster" en donde hay una preferencia de las personas para estar ubicadas en cierta zona dentro de la ciudad.
+    Para esto, defina un lugar de preferencia en forma aleatoria $(x_0, y_0)$ y determine la posición aleatoria de la posición de $N$ personas distribuidas de acuerdo a una distribución normal.
+
+-   Considere la función de la distribución normal (en `R` la función para generar números normalmente distribuidos con media $0$ y desviación estándar $1$ es `rnorm(N,mean=0,sd=1)`).
+    Con esto, puede elegir coordenadas en $x$ que se concentran alrededor de $x_0$ y coordenadas $y$ que se concentran alrededor de $y_0$.
+    Considere una desviación estándar de tamaño $D/20$.
+    
+```{r}
+# PACKAGES:
+library(reshape2)
+library(ggplot2)
+
+# Parametros
+D <- 100     
+sigma <- D / 10
+
+N <- 1000      # Total de personas
+S <- N - 1    # susceptibles
+I <- 1        # infectados
+R <- 0        # recuperados
+
+gamma <- 0.1  # razón de recuperación
+r <- 3        # radio de infección
+
+# Cluster
+set.seed(123)  # para empezar el con el mismo punto (quitar para aleatoridad)
+x0 <- runif(1, min = 0, max = D)
+y0 <- runif(1, min = 0, max = D)
+
+# Generador de posiciones alrededor del cluster
+x <- rnorm(N, mean = x0, sd = sigma)
+y <- rnorm(N, mean = y0, sd = sigma)
+
+# Estado de cada persona
+estado <- factor(c(rep("Infectado", I), rep("Susceptible", S), rep("Recuperado", R)),
+                 levels = c("Susceptible", "Infectado", "Recuperado"))
+
+# Distancia euclidiana entre dos puntos
+distancia <- function(x1, y1, x2, y2) {sqrt((x2 - x1)^2 + (y2 - y1)^2)}
+
+# DataFrame
+ciudad <- data.frame(id = 1:N,
+                     x = x,
+                     y = y,
+                     estado = estado,
+                     iteracion = 0)
+
+# Actualizar DataFrame
+actualizar_ciudad <- function(ciudad, r, gamma) {
+  
+  nueva_ciudad <- ciudad
+  
+  I <- which(ciudad$estado == "Infectado")
+  n_I <- length(I)
+  
+  n_R <- floor(gamma * n_I)  
+  
+  if (n_R > 0) {
+    nueva_ciudad$estado[I[1:n_R]] <- "Recuperado"
+  }
+  
+  for (i in I) {
+    for (j in which(nueva_ciudad$estado == "Susceptible")) {
+      if (distancia(nueva_ciudad$x[i], nueva_ciudad$y[i], nueva_ciudad$x[j], nueva_ciudad$y[j]) < r) {
+        nueva_ciudad$estado[j] <- "Infectado"
+      }
+    }
+  }
+  
+  return(nueva_ciudad)
+}
+
+# Ciudad inicial
+plot(x, y, pch = 16, col = ifelse(ciudad$estado == "Susceptible", "blue",
+                                                 ifelse(ciudad$estado == "Infectado", "red", "green")),    
+    xlim = c(0, D), ylim = c(0, D),
+    xlab = "X", ylab = "Y")
+    title(main = "Ciudad Dia 1")
+    legend("topright", legend = c("Susceptible", "Infectado", "Recuperado"),
+    col = c("blue", "red", "green"), pch = 16)
+
+# Simulación de múltiples iteraciones
+num_iteraciones <- 30
+historial <- data.frame() 
+
+for (t in 1:num_iteraciones) {
+  ciudad$iteracion <- t
+  historial <- rbind(historial, ciudad)
+  
+  ciudad <- actualizar_ciudad(ciudad, r, gamma)
+}
+
+# Ciudad Final
+plot(ciudad$x, ciudad$y, pch = 16, col = ifelse(ciudad$estado == "Susceptible", "blue",
+                                                 ifelse(ciudad$estado == "Infectado", "red", "green")),   
+    xlim = c(0, D), ylim = c(0, D),
+    xlab = "X", ylab = "Y")
+    title(main = "Ciudad Dia 30")
+    legend("topright", legend = c("Susceptible", "Infectado", "Recuperado"),
+    col = c("blue", "red", "green"), pch = 16)
+
+# Visualizar el historial
+head(historial,100)
+```
+
+## Problema 4:
+
+-   Crear una ciudad circular de radio $D/2$ con distribución de personas en "cluster".
+    Considere la generación de números aleatorios en un círculo de acuerdo a <https://programming.guide/random-point-within-circle.html>.
+
+-   Considere un arreglo para posiciones $x$, y otro para posiciones $y$ correspondientes a $N$ personas que se concentran de acuerdo a una distribución normal en un ángulo y distancia al centro seleccionados de manera aleatoria.
+
+### Generación de I, S, R, además de sus coordenadas polares
+
+```{r}
+# Definimos el radio del círculo
+I <- 1
+S <- 999
+Rec <- 0
+N <- I + S + Rec
+R <- 75
+ajuste <- 0.98 # Agrego esto para que ningún punto esté justo en el límite de la ciudad
+N_central <- floor(N*0.66)
+N_resto <- floor(N*0.34)
+# centro cluster
+x0 <- runif(1, -R * 0.1, R * 0.1)
+y0 <- runif(1, -R * 0.1, R * 0.1)
+
+# los del cluster, distribuidos normal
+x_N_central <- rnorm(N_central, mean = x0, sd = R * 0.15)
+y_N_central <- rnorm(N_central, mean = y0, sd = R * 0.15)
+
+# el resto, uniformes
+ang_resto <- runif(N_resto, 0, 2 * pi)
+rad_resto <- R * ajuste * sqrt(runif(N_resto))
+x_N_resto <- rad_resto * cos(ang_resto)
+y_N_resto <- rad_resto * sin(ang_resto)
+
+#combinamos los N de cluster y N de fuera
+x_N <- c(x_N_central, x_N_resto)
+y_N <- c(y_N_central, y_N_resto)
+```
+
+### Definir radio de infección y Razón de recuperación
+
+```{r}
+radius <- 12
+recov <- 0.2 # Radio de infección y Razón de recuperación
+inicio_recov <- 3
+```
+
+### Variables categóricas
+
+```{r}
+estados <- factor(c("Susceptible", "Infectado", "Recuperado"))
+estado_inicial <- c(rep("Susceptible", S), rep("Infectado", I), rep("Recuperado", Rec))
+estado_inicial <- sample(estado_inicial) #
+```
+
+### Dataframe para saber Datos sobre cada Persona
+
+```{r}
+personas <- data.frame(
+  id = 1:N, posición_x = x_N, posición_y = y_N, Estado = factor(estado_inicial, levels = estados), it = 0  
+)
+#Dataframe inicial que genera el id único, estado, posiciones x,y y la iteración
+infectado_inicial <- which(personas$Estado == "Infectado")[1]
+#Función para obtener coordenadas
+coords <- function(id_persona) {
+  persona <- personas[personas$id == id_persona, ]
+  
+  if (nrow(persona) > 0) {
+    return(c(x = persona$posición_x, y = persona$posición_y))
+  } else {
+    return("ID no encontrado bro")
+  }
+}
+```
+
+### Calcular la distancia euclidiana
+
+```{r}
+euclid <- function(x1,x2,y1,y2) {
+  sqrt((x2-x1)^2+(y2-y1)^2)
+}
+```
+
+### Saber si está dentro del radio de infección
+
+```{r}
+infección <- function(x1,x2,y1,y2,radius){
+  euclid(x1,x2,y1,y2) < radius
+}
+#Función que revisa si la distancia entre dos personas es dentro del radio de infección
+```
+
+### Inicio (Se asigna un infectado al azar para comenzar)
+
+```{r}
+#Función gigante para poder graficar siempre que quiera
+graficar <- function(personas, infectado_inicial, R){
+  # Graficar todos los puntos
+  plot(personas$posición_x, personas$posición_y, 
+     xlim = c(-R, R), ylim = c(-R, R),
+     xlab = "x", ylab = "y",          
+     main = "Ciudad V", 
+     pch = ifelse(personas$Estado == "Susceptible", 20, 
+                  ifelse(personas$Estado == "Infectado", 18, 19)), 
+     col = ifelse(personas$Estado == "Susceptible", "blue", 
+                  ifelse(personas$Estado == "Infectado", "red", "green")),
+     cex = ifelse(personas$Estado == "Susceptible", 1, 
+                  ifelse(personas$Estado == "Infectado", 2, 2)),
+     asp = 1)
+  symbols(0, 0, circles = R+0.2, inches = FALSE, add = TRUE, lwd = 2, fg = "blue")
+}
+```
+
+Este sería el dataframe inicial, en los que hay N personas, 999 Susceptibles y 1 Infectado, además de 0 recuperados. (Se toman 15 aleatorios, pero para mostrar el formato)
+
+```{r}
+print(personas[sample(nrow(personas), 15), ])
+
+```
+
+### Infección e iteraciones
+
+```{r}
+# Infección e iteraciones
+ plot(personas$posición_x, personas$posición_y, 
+         xlim = c(-R, R), ylim = c(-R, R),
+         xlab = "x", ylab = "y",          
+         main = paste("Ciudad V Inicial"),
+         pch = ifelse(personas$Estado == "Susceptible", 20, 
+                      ifelse(personas$Estado == "Infectado", 18, 19)), 
+         col = ifelse(personas$Estado == "Susceptible", "blue", 
+                      ifelse(personas$Estado == "Infectado", "red", "green")),
+         cex = ifelse(personas$Estado == "Susceptible", 1, 
+                      ifelse(personas$Estado == "Infectado", 2, 2)),
+         asp = 1)
+    # Graficar una frontera de la ciudad (un círculito vaya, para que sea el límite)
+    symbols(0, 0, circles = R + 0.2, inches = FALSE, add = TRUE, lwd = 2, fg = "blue")
+for (iter in 1:10) {
+  cambios <- FALSE  # Indicador de cambios
+  personas_temp <- personas  # un df temporal para ir checando
+  
+  # Susceptibles iterados
+  for (i in which(personas$Estado == "Susceptible")) {
+    for (k in which(personas$Estado == "Infectado")) {
+      normal_coords <- coords(i)
+      infected_coords <- coords(k)
+      
+      # Dentro del radio de infección?
+      if (infección(infected_coords["x"], normal_coords["x"], infected_coords["y"], normal_coords["y"], radius)) {
+        personas_temp$Estado[i] <- "Infectado"  # Cambiamos el estado a infectado
+        cambios <- TRUE  
+        break 
+      }
+    }
+  }
+  
+  for (i in which(personas$Estado == "Infectado")) {
+    if (iter >= inicio_recov) {  # Solo después de la iteración de recov
+      if (runif(1) < recov) {  # Comprobamos la probabilidad de recuperación
+        personas_temp$Estado[i] <- "Recuperado"  # La persona se recupera
+        cambios <- TRUE
+      }
+    }
+  }
+
+  # Si hubo cambios, actualizamos el personas
+  if (cambios) {
+    personas <- personas_temp
+
+  } else {
+    print("No hubo cambios en esta iteración.")
+  }
+}
+    # Graficar el estado de la ciudad en esta iteración
+    plot(personas$posición_x, personas$posición_y, 
+         xlim = c(-R, R), ylim = c(-R, R),
+         xlab = "x", ylab = "y",          
+         main = paste("Ciudad V - Iteración", iter), # Título con número de iteración
+         pch = ifelse(personas$Estado == "Susceptible", 20, 
+                      ifelse(personas$Estado == "Infectado", 18, 19)), 
+         col = ifelse(personas$Estado == "Susceptible", "blue", 
+                      ifelse(personas$Estado == "Infectado", "red", "green")),
+         cex = ifelse(personas$Estado == "Susceptible", 1, 
+                      ifelse(personas$Estado == "Infectado", 2, 1)),
+         asp = 1)
+    symbols(0, 0, circles = R + 0.2, inches = FALSE, add = TRUE, lwd = 2, fg = "blue")
+print(personas[sample(nrow(personas), 15), ]) #Imprimir 15 personas aleatorias
+```
+
+## Para cada problema de esta actividad:
+
+- Dado un valor inicial de $N$, crear 3 variables para contar el número inicial de infectados, de susceptibles y de recuperados. Las variables deben ser tales que $N=I+S+R$ y que haya por lo menos una persona infectada. Inicialmente no hay recuperados ($R=0$).
+
+- Crear 2 variables para definir el “radio” de infección $r$, que representará la distancia para poderse infectar (por ejemplo $r=0.6$), y para la razón de recuperación.
+
+- Crear una variable categórica (factor variable) que represente el estado de la persona (suceptible, infectada o recuperada).
+
+- Crear una estructura de datos (dataframe o varios arreglos) para representar las variables `posición x`, `posición y`, `estado`, `id único de la persona` y `número de iteración` de las $N$ personas de manera que haya $I$ personas infectadas, $S$ susceptibles y $R$ recuperados.
+
+- Escribir una función que revise la distancia euclidiana entre dos puntos y regrese `TRUE` (o `1`) si la distancia es menor que $r$ y regrese `FALSE` (o `0`) si la distancia es mayor o igual que $r$.
